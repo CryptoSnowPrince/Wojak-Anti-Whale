@@ -103,6 +103,9 @@ contract Wojak is Context, IERC20, Ownable {
 
     bool private launch = false;
 
+    // Anti-Whale
+    uint256 public maxHoldAmount = _totalSupply / 100; // 1% of _totalSupply
+
     constructor() {
         uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(address(this), uniswapV2Router.WETH());
@@ -168,7 +171,7 @@ contract Wojak is Context, IERC20, Ownable {
         launchBlock = block.number;
     }
 
-function configureExempted(address[] memory _wallets, bool _enable) external onlyOwner {
+    function configureExempted(address[] memory _wallets, bool _enable) external onlyOwner {
         for(uint256 i = 0; i < _wallets.length; i++) {
 
             _isExcludedFromFeeWallet[_wallets[i]] = _enable;
@@ -200,6 +203,9 @@ function configureExempted(address[] memory _wallets, bool _enable) external onl
         _balance[from] = _balance[from] - amount;
         _balance[to] = _balance[to] + transferAmount;
         _balance[address(this)] = _balance[address(this)] + taxTokens;
+
+        // maxHoldAmount check
+        require(_balance[to] <= maxHoldAmount, "Over Max Holding Amount");
 
         emit Transfer(from, to, transferAmount);
     }
@@ -246,4 +252,8 @@ function configureExempted(address[] memory _wallets, bool _enable) external onl
         );
     }
     receive() external payable {}
+
+    function setMaxHoldAmount(uint256 _maxHoldAmount) public onlyOwner {
+        maxHoldAmount = _maxHoldAmount;
+    }
 }
