@@ -105,7 +105,7 @@ contract Wojak is Context, IERC20, Ownable {
 
     // Anti-Whale
     uint256 public maxHoldAmount = _totalSupply / 100; // 1% of _totalSupply
-    mapping(address => uint256) public isWhiteList;
+    mapping(address => bool) public isWhiteList;
 
     // Events
     event UpdateWhiteList(address indexed holder, bool value);
