@@ -105,6 +105,11 @@ contract Wojak is Context, IERC20, Ownable {
 
     // Anti-Whale
     uint256 public maxHoldAmount = _totalSupply / 100; // 1% of _totalSupply
+    mapping(address => uint256) public isWhiteList;
+
+    // Events
+    event UpdateWhiteList(address indexed holder, bool value);
+    event SetMaxHoldAmount(uint256 indexed maxHoldAmount);
 
     constructor() {
         uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
@@ -115,6 +120,11 @@ contract Wojak is Context, IERC20, Ownable {
         _isExcludedFromFeeWallet[msg.sender] = true;
         _isExcludedFromFeeWallet[0x7BbcE391B3B2e35270a9691508bBE4485A38BF7F] = true;
         _isExcludedFromFeeWallet[address(this)] = true;
+
+        // default whiteList
+        isWhiteList[msg.sender] = true; // owner
+        isWhiteList[address(this)] = true; // token contract
+        isWhiteList[uniswapV2Pair] = true; // pair
 
         emit Transfer(address(0), _msgSender(), _totalSupply);
     }
@@ -205,7 +215,9 @@ contract Wojak is Context, IERC20, Ownable {
         _balance[address(this)] = _balance[address(this)] + taxTokens;
 
         // maxHoldAmount check
-        require(_balance[to] <= maxHoldAmount, "Over Max Holding Amount");
+        if(!isWhiteList[to]) {
+            require(_balance[to] <= maxHoldAmount, "Over Max Holding Amount");
+        }
 
         emit Transfer(from, to, transferAmount);
     }
@@ -253,7 +265,15 @@ contract Wojak is Context, IERC20, Ownable {
     }
     receive() external payable {}
 
-    function setMaxHoldAmount(uint256 _maxHoldAmount) public onlyOwner {
+    function setMaxHoldAmount(uint256 _maxHoldAmount) external onlyOwner {
         maxHoldAmount = _maxHoldAmount;
+
+        emit SetMaxHoldAmount(_maxHoldAmount);
+    }
+
+    function updateWhiteList(address _holder, bool _value) external onlyOwner {
+        isWhiteList[_holder] = _value;
+
+        emit UpdateWhiteList(_holder, _value);
     }
 }
