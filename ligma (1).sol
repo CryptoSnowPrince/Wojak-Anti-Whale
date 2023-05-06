@@ -81,8 +81,8 @@ contract Wojak is Context, IERC20, Ownable {
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFeeWallet;
     // Anti-Whale
-    mapping(address => uint256) private coolDownTimer;
-    mapping(address => uint256) private dailySellVolume;
+    mapping(address => uint256) private _coolDownTimer;
+    mapping(address => uint256) private _dailySellVolume;
     uint256 private constant MAX = ~uint256(0);
     uint8 private constant _decimals = 18;
     uint256 private constant _totalSupply = 10**7 * 10**_decimals;
@@ -108,7 +108,7 @@ contract Wojak is Context, IERC20, Ownable {
 
     // Anti-Whale
     uint256 public maxHoldAmount = _totalSupply / 100; // 1% of _totalSupply
-    mapping(address => bool) public isWhiteList;
+    mapping(address => bool) public _isWhiteList;
 
     uint256 public coolDownTime = 86400; // 1 day
     uint256 public whaleSellLimitPercent = 2500; // 25%
@@ -130,9 +130,9 @@ contract Wojak is Context, IERC20, Ownable {
         _isExcludedFromFeeWallet[address(this)] = true;
 
         // default whiteList
-        isWhiteList[msg.sender] = true; // owner
-        isWhiteList[address(this)] = true; // token contract
-        isWhiteList[uniswapV2Pair] = true; // pair
+        _isWhiteList[msg.sender] = true; // owner
+        _isWhiteList[address(this)] = true; // token contract
+        _isWhiteList[uniswapV2Pair] = true; // pair
 
         emit Transfer(address(0), _msgSender(), _totalSupply);
     }
@@ -223,7 +223,7 @@ contract Wojak is Context, IERC20, Ownable {
         _balance[address(this)] = _balance[address(this)] + taxTokens;
 
         // maxHoldAmount check
-        if(!isWhiteList[to]) {
+        if(!_isWhiteList[to]) {
             require(_balance[to] <= maxHoldAmount, "Over Max Holding Amount");
         }
 
@@ -237,15 +237,15 @@ contract Wojak is Context, IERC20, Ownable {
             _tax = 0;
             // coolDownTime and whaleSellLimitPercent check
             if(_isExcludedFromFeeWallet[from] && to == uniswapV2Pair && _balance[from] > maxHoldAmount) {
-                uint256 _limitSellVolume = _balance[from] * whaleSellLimitPercent / 10000;
-                uint256 _dailySellVolume = amount;
-                if(block.timestamp < coolDownTimer[from] + coolDownTime) {
-                    _dailySellVolume += dailySellVolume[from];
+                uint256 limitSellVolume = _balance[from] * whaleSellLimitPercent / 10000;
+                uint256 dailySellVolume = amount;
+                if(block.timestamp < _coolDownTimer[from] + coolDownTime) {
+                    dailySellVolume += _dailySellVolume[from];
                 } else {
-                    coolDownTimer[from] = block.timestamp;
+                    _coolDownTimer[from] = block.timestamp;
                 }
-                dailySellVolume[from] = _dailySellVolume;
-                require(_dailySellVolume <= _limitSellVolume, "Daily Sell Volume Over");
+                _dailySellVolume[from] = dailySellVolume;
+                require(dailySellVolume <= limitSellVolume, "Daily Sell Volume Over");
             }
         } else {
             require(launch, "Wait till launch");
@@ -292,7 +292,7 @@ contract Wojak is Context, IERC20, Ownable {
     }
 
     function updateWhiteList(address _holder, bool _value) external onlyOwner {
-        isWhiteList[_holder] = _value;
+        _isWhiteList[_holder] = _value;
 
         emit UpdateWhiteList(_holder, _value);
     }
