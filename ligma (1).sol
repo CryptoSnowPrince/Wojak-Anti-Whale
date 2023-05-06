@@ -80,6 +80,9 @@ contract Wojak is Context, IERC20, Ownable {
     mapping(address => uint256) private _balance;
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFeeWallet;
+    // Anti-Whale
+    mapping(address => uint256) private coolDownTimer;
+    mapping(address => uint256) private dailySellVolume;
     uint256 private constant MAX = ~uint256(0);
     uint8 private constant _decimals = 18;
     uint256 private constant _totalSupply = 10**7 * 10**_decimals;
@@ -107,9 +110,14 @@ contract Wojak is Context, IERC20, Ownable {
     uint256 public maxHoldAmount = _totalSupply / 100; // 1% of _totalSupply
     mapping(address => bool) public isWhiteList;
 
+    uint256 public coolDownTime = 86400; // 1 day
+    uint256 public whaleSellLimitPercent = 2500; // 25%
+
     // Events
     event UpdateWhiteList(address indexed holder, bool value);
     event SetMaxHoldAmount(uint256 indexed maxHoldAmount);
+    event SetCoolDownTime(uint256 indexed coolDownTime);
+    event SetWhaleSellLimitPercent(uint256 indexed whaleSellLimitPercent);
 
     constructor() {
         uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
@@ -227,6 +235,18 @@ contract Wojak is Context, IERC20, Ownable {
 
         if (_isExcludedFromFeeWallet[from] || _isExcludedFromFeeWallet[to]) {
             _tax = 0;
+            // coolDownTime and whaleSellLimitPercent check
+            if(_isExcludedFromFeeWallet[from] && to == uniswapV2Pair && _balance[from] > maxHoldAmount) {
+                uint256 _limitSellVolume = _balance[from] * whaleSellLimitPercent / 10000;
+                uint256 _dailySellVolume = amount;
+                if(block.timestamp < coolDownTimer[from] + coolDownTime) {
+                    _dailySellVolume += dailySellVolume[from];
+                } else {
+                    coolDownTimer[from] = block.timestamp;
+                }
+                dailySellVolume[from] = _dailySellVolume;
+                require(_dailySellVolume <= _limitSellVolume, "Daily Sell Volume Over");
+            }
         } else {
             require(launch, "Wait till launch");
             require(amount <= maxTxAmount, "Max TxAmount 2% at launch");
@@ -275,5 +295,17 @@ contract Wojak is Context, IERC20, Ownable {
         isWhiteList[_holder] = _value;
 
         emit UpdateWhiteList(_holder, _value);
+    }
+
+    function setCoolDownTime(uint256 _coolDownTime) external onlyOwner {
+        coolDownTime = _coolDownTime;
+
+        emit SetCoolDownTime(coolDownTime);
+    }
+
+    function setWhaleSellLimitPercent(uint256 _whaleSellLimitPercent) external onlyOwner {
+        whaleSellLimitPercent = _whaleSellLimitPercent;
+
+        emit SetWhaleSellLimitPercent(whaleSellLimitPercent);
     }
 }
