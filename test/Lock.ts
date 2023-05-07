@@ -2,6 +2,11 @@ import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import RouterABI from "@uniswap/v2-periphery/build/IUniswapV2Router02.json";
+import WETH_ABI from "@uniswap/v2-periphery/build/WETH9.json";
+
+const UNISWAP_ROUTER_ADDRESS = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D";
+const WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
 describe("Lock", function () {
   // We define a fixture to reuse the same setup in every test.
