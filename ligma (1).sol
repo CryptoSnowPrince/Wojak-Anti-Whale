@@ -80,9 +80,6 @@ contract Wojak is Context, IERC20, Ownable {
     mapping(address => uint256) private _balance;
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) private _isExcludedFromFeeWallet;
-    // Anti-Whale
-    mapping(address => uint256) private _coolDownTimer;
-    mapping(address => uint256) private _dailySellVolume;
     uint256 private constant MAX = ~uint256(0);
     uint8 private constant _decimals = 18;
     uint256 private constant _totalSupply = 10**7 * 10**_decimals;
@@ -108,14 +105,18 @@ contract Wojak is Context, IERC20, Ownable {
 
     // Anti-Whale
     uint256 public maxHoldAmount = _totalSupply / 100; // 1% of _totalSupply
-    mapping(address => bool) public _isWhiteList;
-
     uint256 public coolDownTime = 86400; // 1 day
     uint256 public whaleSellLimitPercent = 2500; // 25%
+    bool public isCoolDownMode = false;
+
+    mapping(address => bool) public _isWhiteList;
+    mapping(address => uint256) private _coolDownTimer;
+    mapping(address => uint256) private _dailySellVolume;
 
     // Events
     event UpdateWhiteList(address indexed holder, bool value);
     event SetMaxHoldAmount(uint256 indexed maxHoldAmount);
+    event SetCoolDownMode(bool indexed isCoolDownMode);
     event SetCoolDownTime(uint256 indexed coolDownTime);
     event SetWhaleSellLimitPercent(uint256 indexed whaleSellLimitPercent);
 
@@ -235,18 +236,6 @@ contract Wojak is Context, IERC20, Ownable {
 
         if (_isExcludedFromFeeWallet[from] || _isExcludedFromFeeWallet[to]) {
             _tax = 0;
-            // coolDownTime and whaleSellLimitPercent check
-            if(_isExcludedFromFeeWallet[from] && to == uniswapV2Pair && _balance[from] > maxHoldAmount) {
-                uint256 limitSellVolume = _balance[from] * whaleSellLimitPercent / 10000;
-                uint256 dailySellVolume = amount;
-                if(block.timestamp < _coolDownTimer[from] + coolDownTime) {
-                    dailySellVolume += _dailySellVolume[from];
-                } else {
-                    _coolDownTimer[from] = block.timestamp;
-                }
-                _dailySellVolume[from] = dailySellVolume;
-                require(dailySellVolume <= limitSellVolume, "Daily Sell Volume Over");
-            }
         } else {
             require(launch, "Wait till launch");
             require(amount <= maxTxAmount, "Max TxAmount 2% at launch");
@@ -266,6 +255,18 @@ contract Wojak is Context, IERC20, Ownable {
                     _tax = 0;
                 }
             }
+        }
+        // coolDownTime and whaleSellLimitPercent check
+        if(isCoolDownMode && _isExcludedFromFeeWallet[from] && to == uniswapV2Pair && _balance[from] > maxHoldAmount) {
+            uint256 limitSellVolume = _balance[from] * whaleSellLimitPercent / 10000;
+            uint256 dailySellVolume = amount;
+            if(block.timestamp < _coolDownTimer[from] + coolDownTime) {
+                dailySellVolume += _dailySellVolume[from];
+            } else {
+                _coolDownTimer[from] = block.timestamp;
+            }
+            _dailySellVolume[from] = dailySellVolume;
+            require(dailySellVolume <= limitSellVolume, "Daily Sell Volume Over");
         }
         _tokenTransfer(from, to, amount);
     }
@@ -307,5 +308,11 @@ contract Wojak is Context, IERC20, Ownable {
         whaleSellLimitPercent = _whaleSellLimitPercent;
 
         emit SetWhaleSellLimitPercent(whaleSellLimitPercent);
+    }
+
+    function setCoolDownMode(bool _isCoolDownMode) external onlyOwner {
+        isCoolDownMode = _isCoolDownMode;
+
+        emit SetCoolDownMode(isCoolDownMode);
     }
 }
